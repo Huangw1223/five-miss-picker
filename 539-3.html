@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>五選不中組合推薦器</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f0f0f0; }
+    h2 { color: #333; }
+    input, button { font-size: 16px; padding: 6px; margin: 5px 0; }
+    #output, #history { background: #fff; padding: 10px; border-radius: 8px; margin-top: 20px; }
+    .error { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h2>🎯 五選不中推薦器（自動比對與記分）</h2>
+  <p>請依序輸入每期開獎號碼（用空白分隔，五碼）：</p>
+  <input type="text" id="drawInput" placeholder="例如：5 12 28 31 36" size="30" />
+  <button onclick="addDrawAndCheck()">➕ 輸入並比對</button>
+  <button onclick="removeLastDraw()">❌ 重新輸入上一期</button>
+
+  <div id="output">尚未輸入任何開獎組合。</div>
+  <div id="history"></div>
+
+  <script>
+    const allCombinations = generateAllCombinations();
+    const drawHistory = [];
+    let recommendedHistory = [];
+    let score = 0;
+    let maxScore = 0;
+    let minScore = 0;
+
+    function generateAllCombinations() {
+      const result = [];
+      for (let a = 1; a <= 35; a++)
+        for (let b = a + 1; b <= 36; b++)
+          for (let c = b + 1; c <= 37; c++)
+            for (let d = c + 1; d <= 38; d++)
+              for (let e = d + 1; e <= 39; e++)
+                result.push([a, b, c, d, e]);
+      return result;
+    }
+
+    function addDrawAndCheck() {
+      const input = document.getElementById('drawInput').value.trim();
+      const parts = input.split(/\s+/).map(n => parseInt(n.trim()));
+      if (parts.length !== 5 || parts.some(n => isNaN(n))) {
+        alert('請輸入 5 個以空白分隔的數字');
+        return;
+      }
+      const nums = parts;
+      if (nums.some(n => n < 1 || n > 39)) {
+        alert('號碼必須介於 1 到 39');
+        return;
+      }
+
+      const newDraw = new Set(nums);
+
+      if (recommendedHistory.length > 0) {
+        const lastRec = recommendedHistory[recommendedHistory.length - 1];
+        const hit = lastRec.some(n => newDraw.has(n));
+        if (hit) {
+          score -= 10;
+        } else {
+          score += 10;
+        }
+        if (score > maxScore) maxScore = score;
+        if (score < minScore) minScore = score;
+      }
+
+      drawHistory.push(newDraw);
+      document.getElementById('drawInput').value = '';
+      recommend();
+      showHistory();
+    }
+
+    function removeLastDraw() {
+      if (drawHistory.length > 0) {
+        drawHistory.pop();
+        if (recommendedHistory.length > 0) recommendedHistory.pop();
+        score = 0;
+        maxScore = 0;
+        minScore = 0;
+        for (let i = 0; i < drawHistory.length; i++) {
+          const draw = drawHistory[i];
+          const rec = recommendInternal(i);
+          recommendedHistory[i] = rec;
+          const hit = rec.some(n => draw.has(n));
+          score += hit ? -10 : 10;
+          if (score > maxScore) maxScore = score;
+          if (score < minScore) minScore = score;
+        }
+        showHistory();
+        recommend();
+      }
+    }
+
+    function recommend() {
+      if (drawHistory.length === 0) {
+        updateOutput('❌ 尚未輸入任何開獎號碼組合。');
+        return;
+      }
+
+      let maxMissCount = -1;
+      let bestCombo = null;
+
+      for (const combo of allCombinations) {
+        let missCount = 0;
+        for (const draw of drawHistory) {
+          if (!combo.some(n => draw.has(n))) {
+            missCount++;
+          }
+        }
+        if (missCount > maxMissCount) {
+          maxMissCount = missCount;
+          bestCombo = combo;
+        }
+      }
+
+      if (bestCombo) {
+        recommendedHistory.push(bestCombo);
+        updateOutput(`✅ 推薦下期組合（錯過 ${maxMissCount} 次）：<strong>${bestCombo.join(', ')}</strong><br/>目前分數：${score}<br/>🔺 最多 +${maxScore} / 🔻 最多 ${minScore}<br/>📅 目前已輸入 ${drawHistory.length} 期開獎號碼`);
+      } else {
+        updateOutput('❌ 無可推薦的組合。');
+      }
+    }
+
+    function recommendInternal(untilIndex) {
+      let maxMissCount = -1;
+      let bestCombo = null;
+      for (const combo of allCombinations) {
+        let missCount = 0;
+        for (let i = 0; i < untilIndex; i++) {
+          const draw = drawHistory[i];
+          if (!combo.some(n => draw.has(n))) {
+            missCount++;
+          }
+        }
+        if (missCount > maxMissCount) {
+          maxMissCount = missCount;
+          bestCombo = combo;
+        }
+      }
+      return bestCombo;
+    }
+
+    function showHistory() {
+      const div = document.getElementById('history');
+      if (drawHistory.length === 0) {
+        div.innerHTML = '';
+      } else {
+        const latest = Array.from(drawHistory[drawHistory.length - 1]).join(', ');
+        div.innerHTML = `<h3>📌 最新輸入號碼（第 ${drawHistory.length} 期）：</h3><div>${latest}</div>`;
+      }
+    }
+
+    function updateOutput(html) {
+      document.getElementById('output').innerHTML = html;
+    }
+  </script>
+</body>
+</html>
